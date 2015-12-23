@@ -1,0 +1,276 @@
+---
+title: "Analysis of State dataset"
+author: "Maria George"
+date: "December 14, 2015"
+output: pdf_document
+---
+
+```{r warning=FALSE, message=FALSE}
+# Loading all the required libraries
+library("dplyr")
+library("ggplot2")
+library("car") # Contains the scatterplotMatrix function
+#install.packages("boot")
+library("boot") # Perform crossvalidation
+#install.packages("tree")
+library("tree")
+library("randomForest")
+library(pROC) # Useful for computing and plotting classifer metrics 
+library("ISLR") 
+# install.packages("gbm")
+library(gbm) # To perform boosting
+```
+
+
+##### The state dataset, available as part of the base R package, contains various data related to the 50 states of the United States of America.
+
+##### Exploring the relationship between a states Murder rate and other characteristics of the state, for example population, illiteracy rate, and more. Follow the questions below to perform this analysis.
+
+##### Examining the bivariate relationships present in the data. 
+
+\newpage
+```{r message=FALSE, warning=FALSE}
+
+# Loading the state.x77 data into a local variable
+state.data <- as.data.frame(state.x77)
+
+# Renaming the column names
+colnames(state.data)[colnames(state.data)=="HS Grad"] <- "HSGrad"
+colnames(state.data)[colnames(state.data)=="Life Exp"] <- "LifeExp"
+
+# Displaying the correlation matrix
+cor(state.data)
+
+# Plotting the scatterplot matrix to check for bivariate relationships
+scatterplotMatrix(state.data, spread=FALSE, lty.smooth=2,
+                  main="Scatter Plot Matrix")
+
+# Ensuring that there are no missing values
+state.data <- state.data[complete.cases(state.data), ]
+```
+
+Results observed from the scatter plot:
+
+  1. From the scatter plot, we can observe that Murder rate is bimodal and each 
+     of the predictor variables are skewed to some extent.
+  2. Murder rate rises with Population (r=0.344), Illiteracy(0.703) and Area(0.228)
+  3. Murder rate falls with Income(r=-0.230), LifeExp(-0.781), HSGrad(-0.488)
+     and Frost(-0.539)
+  4. Murder rate has a strong correlation with Illiteracy and LifeExp, moderate 
+     correlation with Frost.
+  5. We can also observe that Illiteracy falls with HSGrad and Frost.
+  6. Income rises with HSGrad.
+
+##### (b) Fit a multiple linear regression model. How much variance in the murder rate across states do the predictor variables explain?
+
+\newpage
+```{r message=FALSE, warning=FALSE}
+
+# Fitting a multiple linear regression model
+state.fit <- lm(Murder ~ Population + Income + Illiteracy + LifeExp +
+                  HSGrad +	Frost + Area, data = state.data)
+
+# Displaying the summary statistics of the fitted model 
+summary(state.fit)
+
+```
+
+R-squared value gives the amount of variance explained by the model. From
+the summary statistic table, we can observe that Multiple R-squared value is
+0.808. This means that 80.8% of the variance in the murder rate can be 
+predicted using the predictor variables.
+
+From the summary statistics of the fitted multiple linear rgression model, we
+can observe that predictor variable LifeExp is statistically significant at the 
+0.001 level, Population is significant at the 0.05 level and Frost at the 0.1
+level.
+
+##### Evaluating the statistical assumptions in regression analysis of the above fitted model
+
+\newpage
+```{r message=FALSE, warning=FALSE}
+
+# Plotting the fitted model to evaluate the statistical assumptions
+par(mfrow = c(2,2))
+plot(state.fit)
+
+```
+
+Statistical assumptions behind regression models are:
+  1. Normality: The dependent variable is normally distributed for fixed values 
+     of the independent variables. 
+  2. Independence: The response variable values are independent of each other.
+  3. Linearity: The dependent variable is linearly related to the independent
+     variables.
+  4. Homoscedasticity or Constant variance: The variance of the dependent variable    
+     doesnt vary with the levels of the independent variables.
+
+From the plot of the fitted model:
+  1. Normality: If the dependent variable is normally distributed for a fixed set 
+     of predictor values, then the residual values should be normally distributed 
+     with a mean of 0. If this condition is met, the points in the Normal Q-Q plot,
+     will fall on the 45 degree straight line. This is true for the fitted model.
+     Thus the normality condition is satisfied.
+     
+  2. Independence: This is judged using how the data was collected. There is no
+     reason to believe that the murder rate in once state influences the 
+     murder rate in another state. If not, the the assumption of independence 
+     has to be adjusted.
+  
+  3. Linearity: If the dependent variable is linearly related to the independent 
+     variables, there should be no systematic relationship between the residuals 
+     and the fitted values. Residual vs Fitted graph will not have patterns and 
+     will be randomly distributed, which is true in this case. Thus the linearity
+     assumption is satisfied.
+  
+  4. Homoscedasticity: If the constant variance assumption is met, the points in 
+     the Scale-Location graph (bottom left) should be a random band around a 
+     horizontal line, which is true in this case. Thus the constant variance
+     assumption is satisfied.
+
+However, there are some concerns about the model:
+
+  1. There are a few outliers. Oultliers are observations that are not well by
+     the model, thereby resulting in large postive or negative residuals. From
+     the Residuals vs Fitted graph, we can see that Nevada, Michigan and Maine
+     have high residual values.
+  
+  2. High leverage points are observations with unusual value fo r predictor 
+     variables.
+  
+  3. Collinearity: From the scatter plots, we have observed that predictor 
+     variables Income and HSGrad are correlated. Also, Illiteracy and 
+     HSGrad are correlated. Thus with this model, it is difficult to interpret
+     the individual effec of these predictor variables on the response variable.
+     Thus the accuracy of the estimates of the regression coefficients is reduced.
+     This reduces the t-statistic, thereby failing to identify predictor variables
+     with non-zero coefficients. 
+     From the summary statistics of the fitted model, it can be observed that 
+     only the predictor variables LifeExp and Population are statistically significant.
+  
+##### Using a stepwise model selection procedure of your choice to obtain a best fit model. 
+
+\newpage
+```{r message=FALSE, warning=FALSE}
+
+# Using stepwise model selection to obtain a best fit model
+state.best.fit <- step(state.fit, data = state.data, direction = "backward")
+# Displaying the summary statistics of the model
+summary(state.best.fit)
+
+```
+  
+  The "best" fit model is different from the full model. Here the step function 
+  helps in building the bst fit model based on lowest AIC.
+  The full model only had Population and LifeExp as the predictor variables that 
+  are statistically significant with p-value <0.05. However, in the "best fit" 
+  model, predictor variables Population, LifeExp and Area are found to be 
+  statistically significant. Also, when compared to the full model, the best 
+  fit model only has 5 predictor variables in the model,three of them 
+  statistically significant(p-value <0.05) and the Illiteracy and Frost 
+  significant at 0.1 level.
+  
+  We can also observe that, 
+  1. Residual standard error has reduced from 1.75 (full model) to 1.71
+     (best fit model).
+  2. Adjusted R-squared value has improved from 0.776(full model) to 0.785(best 
+     fit model). 
+  3. F-statistic has improved from 25.3(full model) to 36.7(best fit model). 
+  
+##### Assessing the model for generalizability. Performing a 10-fold cross validation to estimate model performance
+
+\newpage
+```{r message=FALSE, warning=FALSE}
+
+# Fitting the full model using glm
+state.fit <- glm(Murder ~ Population + Income + Illiteracy + LifeExp +
+                  HSGrad +  Frost + Area, data = state.data)
+
+# Fitting the best fit model using stepwise model selection procedure
+state.best.fit <- step(state.fit, data = state.data, direction = "backward")
+
+# Calulating the error rate of the best fit model on the entire data
+mean((state.data$Murder-predict(state.best.fit, state.data))^2)
+
+# Performing 10 fold cross validation
+set.seed(1)
+cv.state <- cv.glm(state.data, state.best.fit, K = 10)
+
+# Displaying the cross validation results
+cv.state$delta
+
+```
+
+The cv.glm() functionproduces a list with several components. One of them is delta.
+The two numbers of delta represent the cross validation results.The first value,
+3.84 is the standard K-fold CV estimate while the second one, 3.76 is the
+bias corrected version.
+
+As expected, the CV error estimates is slightly higher than the error rate
+from linear regression above (2.58) indicating that the error rate obtained from
+the linear regression model under estimates the test error rate, thereby leading to
+overfitting of the data.
+
+##### Fitting a regression tree using the same covariates in the best fit model. Using cross validation to select the best tree.
+
+\newpage
+```{r message=FALSE, warning=FALSE}
+
+# Fitting a regression tree with the same covariates as the best fit model
+# state.best.fit
+tree.state <- tree(Murder ~ Population + Illiteracy + LifeExp + Frost + Area,
+                   data = state.data)
+# Displaying the summary statistics 
+summary(tree.state)
+
+# Plotting the tree
+plot(tree.state)
+text(tree.state, pretty =0)
+
+# Performing cross validation
+set.seed(1)
+cv.tree.state <- cv.tree(tree.state)
+# Displaying the summary statistics of the decision tree
+summary(cv.tree.state)
+
+# Plotting the tree to find the determine optimal tree size
+plot(cv.tree.state$size, cv.tree.state$dev, type = "b", 
+     xlab = "size of the tree", ylab = "deviance")
+tree.min <- which.min(cv.tree.state$dev)
+points(cv.tree.state$size[tree.min], min(cv.tree.state$dev),
+       col = "red", cex = 2, pch = 20)
+
+# Pruning the tree based on the best tree size obtained from cross validation
+prune.state <- prune.tree(tree.state, best = 7)
+# Displaying the summary statistics of the pruned tree
+summary(prune.state)
+
+```
+
+Decision tree is fitted using the same covariates (Population, Illiteracy, LifeExp,
+Frost, Area) as the best fit model obtained using stepwise model selection procedure, state.best.fit. 
+
+After performing cross validation, it was observed that the tree of size 7 results
+in the lowest deviance (440). Thus a tree of size 7 is the best fit tree. This can
+also observed from the graph. 
+The trees is pruned to size 7 to obatin the best fit tree.
+
+##### Comparing the models based on their performance
+
+\newpage
+```{r message=FALSE, warning=FALSE}
+
+# Calulating the error rate of the best fit model obatined from (d) 
+# on the entire data
+mean((state.data$Murder-predict(state.best.fit, state.data))^2)
+
+# Calulating the error rate of the pruned tree on the entire data
+mean((state.data$Murder-predict(prune.state, state.data))^2)
+```
+
+Mean Squared Error is calculated for both the models (state.best.fit and
+pruned tree) on the entire data. It can be seen that the train MSE of 
+pruned tree (2.42) is less than the MSE of the linear best fit model (2.58).
+Thus pruned tree (model obrained in part(f)) is preferred to the  linear best 
+fit model(model obrained in part(d)).
+
